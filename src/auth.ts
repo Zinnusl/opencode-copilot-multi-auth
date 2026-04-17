@@ -6,7 +6,9 @@ import {
   type Account,
 } from "./types"
 import { add } from "./storage"
-import type { AuthOuathResult } from "@opencode-ai/plugin"
+import type { AuthOAuthResult } from "@opencode-ai/plugin"
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 export function createAuthMethod(version: string) {
   const agent = `opencode/${version}`
@@ -48,7 +50,7 @@ export function createAuthMethod(version: string) {
         placeholder: "personal",
       },
     ],
-    async authorize(inputs: Record<string, string> = {}): Promise<AuthOuathResult> {
+    async authorize(inputs: Record<string, string> = {}): Promise<AuthOAuthResult> {
       const deploymentType = inputs.deploymentType || "github.com"
       let domain = "github.com"
       let actualProvider = "github-copilot"
@@ -157,7 +159,7 @@ export function createAuthMethod(version: string) {
             }
 
             if (data.error === "authorization_pending") {
-              await Bun.sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
+              await sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
               continue
             }
 
@@ -167,13 +169,13 @@ export function createAuthMethod(version: string) {
               if (serverInterval && typeof serverInterval === "number" && serverInterval > 0) {
                 interval = serverInterval * 1000
               }
-              await Bun.sleep(interval + OAUTH_POLLING_SAFETY_MARGIN_MS)
+              await sleep(interval + OAUTH_POLLING_SAFETY_MARGIN_MS)
               continue
             }
 
             if (data.error) return { type: "failed" as const }
 
-            await Bun.sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
+            await sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
             continue
           }
         },

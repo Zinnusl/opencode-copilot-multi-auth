@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
-import { load, add, remove, list, reorder } from "../src/storage"
+import { load, add, remove, list, reorder, invalidateCache } from "../src/storage"
 import { authJsonPath } from "../src/types"
 
 let tmpDir: string
@@ -10,6 +10,7 @@ let tmpDir: string
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "copilot-test-"))
   process.env.COPILOT_MULTI_AUTH_DATA_DIR = tmpDir
+  invalidateCache()
 })
 
 afterEach(async () => {
@@ -66,6 +67,29 @@ describe("storage", () => {
     expect(accounts).toHaveLength(1)
     expect(accounts[0].label).toBe("updated")
     expect(accounts[0].token).toBe("t2")
+  })
+
+  test("list uses cache after first load", async () => {
+    await add({ id: "a", label: "first", domain: "github.com", token: "t1", added_at: 1, priority: 0 })
+    const list1 = await list()
+    // Modify file directly behind the cache's back
+    const filePath = path.join(tmpDir, "multi-copilot-accounts.json")
+    await fs.writeFile(filePath, JSON.stringify({ version: 1, accounts: [] }))
+    const list2 = await list()
+    // Should still return cached result
+    expect(list2).toHaveLength(1)
+    expect(list2[0].id).toBe(list1[0].id)
+  })
+
+  test("invalidateCache forces re-read from disk", async () => {
+    await add({ id: "a", label: "first", domain: "github.com", token: "t1", added_at: 1, priority: 0 })
+    await list()
+    // Modify file directly
+    const filePath = path.join(tmpDir, "multi-copilot-accounts.json")
+    await fs.writeFile(filePath, JSON.stringify({ version: 1, accounts: [] }))
+    invalidateCache()
+    const accounts = await list()
+    expect(accounts).toHaveLength(0)
   })
 
   test("enterprise account syncs enterpriseUrl to auth.json", async () => {

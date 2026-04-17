@@ -28,15 +28,25 @@ async function writeJson(filepath: string, data: unknown) {
   await fs.rename(tmp, filepath)
 }
 
+let cache: AccountStore | null = null
+
+export function invalidateCache() {
+  cache = null
+}
+
 export async function load(): Promise<AccountStore> {
+  if (cache) return cache
   const data = await readJson<AccountStore>(accountsPath())
   if (!data || data.version !== STORE_VERSION) {
-    return { version: STORE_VERSION, accounts: [] }
+    cache = { version: STORE_VERSION, accounts: [] }
+  } else {
+    cache = data
   }
-  return data
+  return cache
 }
 
 export async function save(store: AccountStore) {
+  cache = store
   await writeJson(accountsPath(), store)
   await syncAuthJson(store)
 }

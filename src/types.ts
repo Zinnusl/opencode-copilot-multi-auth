@@ -8,9 +8,10 @@ const DATA_DIR = () => process.env.COPILOT_MULTI_AUTH_DATA_DIR ?? path.join(os.h
 export const accountsPath = () => path.join(DATA_DIR(), "multi-copilot-accounts.json")
 export const authJsonPath = () => path.join(DATA_DIR(), "auth.json")
 
-export const RECOVERY_SCORE_PER_HOUR = 2
 export const DEFAULT_RETRY_AFTER_MS = 60_000
 export const MAX_RETRY_AFTER_MS = 600_000
+export const AUTH_FAIL_TTL_MS = 300_000
+export const MAX_SESSION_ENTRIES = 1000
 
 export const STORE_VERSION = 1
 
@@ -25,11 +26,10 @@ export type Account = {
 
 export type AccountHealth = {
   id: string
-  score: number // 100 = healthy, 0 = rate limited
   rate_limited_until: number // timestamp, 0 = not limited
+  auth_failed_until: number // timestamp, 0 = not failed
   last_success: number
   last_failure: number
-  consecutive_failures: number
 }
 
 export type AccountStore = {

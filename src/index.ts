@@ -5,7 +5,7 @@ import { createAuthMethod } from "./auth"
 import { createFetch } from "./fetch"
 import { handleAccounts } from "./commands"
 
-const VERSION = "0.2.9"
+const VERSION = "0.3.0"
 
 export default async function(input: PluginInput): Promise<Hooks> {
   const sdk = input.client
@@ -66,6 +66,8 @@ export default async function(input: PluginInput): Promise<Hooks> {
 
     "chat.headers": async (incoming, output) => {
       if (!incoming.model.providerID.includes("github-copilot")) return
+
+      output.headers["x-opencode-session"] = incoming.sessionID
 
       if (incoming.model.api.npm === "@ai-sdk/anthropic") {
         output.headers["anthropic-beta"] = "interleaved-thinking-2025-05-14"

@@ -3,14 +3,15 @@ import fs from "fs/promises"
 import path from "path"
 import os from "os"
 import { handleAccounts } from "../src/commands"
-import { add } from "../src/storage"
-import { markRateLimited, markSuccess, resetHealth } from "../src/rotation"
+import { add, invalidateCache } from "../src/storage"
+import { markRateLimited, markSuccess, markAuthFailed, resetHealth } from "../src/rotation"
 
 let tmpDir: string
 
 beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "copilot-cmd-"))
   process.env.COPILOT_MULTI_AUTH_DATA_DIR = tmpDir
+  invalidateCache()
   resetHealth("alice")
   resetHealth("bob")
 })
@@ -152,6 +153,21 @@ describe("handleAccounts", () => {
       expect(result).not.toContain("Quota")
     })
 
+    test("status: shows auth failed for auth-failed account", async () => {
+      await add({ id: "id-alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
+      markAuthFailed("id-alice")
+      const result = await handleAccounts("status")
+      expect(result).toContain("Auth failed")
+      expect(result).toContain("alice")
+    })
+
+    test("list: shows AUTH FAILED tag", async () => {
+      await add({ id: "alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
+      markAuthFailed("alice")
+      const result = await handleAccounts("list")
+      expect(result).toContain("[AUTH FAILED]")
+    })
+
     test("status: shows rate limited for rate limited account", async () => {
       await add({ id: "id-alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
       markRateLimited("id-alice")
@@ -162,10 +178,44 @@ describe("handleAccounts", () => {
     })
   })
 
-  describe("unknown action", () => {
-    test("returns usage message", async () => {
+  describe("reset", () => {
+    test("without argument clears all health state", async () => {
+      await add({ id: "id-alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
+      await add({ id: "id-bob", label: "bob", domain: "github.com", token: "t2", added_at: 0, priority: 1 })
+      markAuthFailed("id-alice")
+      markRateLimited("id-bob")
+      const result = await handleAccounts("reset")
+      expect(result).toContain("Cleared health state for all accounts")
+      const status = await handleAccounts("status")
+      expect(status).not.toContain("Auth failed: yes")
+      expect(status).not.toContain("Rate limited: yes")
+    })
+
+    test("with username clears single account", async () => {
+      await add({ id: "id-alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
+      await add({ id: "id-bob", label: "bob", domain: "github.com", token: "t2", added_at: 0, priority: 1 })
+      markAuthFailed("id-alice")
+      markRateLimited("id-bob")
+      const result = await handleAccounts("reset alice")
+      expect(result).toContain("Cleared health state for alice")
+      const status = await handleAccounts("status")
+      expect(status).not.toContain("Auth failed: yes")
+      expect(status).toContain("Rate limited: yes")
+    })
+
+    test("with unknown username returns error", async () => {
+      await add({ id: "id-alice", label: "alice", domain: "github.com", token: "t1", added_at: 0, priority: 0 })
+      const result = await handleAccounts("reset nonexistent")
+      expect(result).toContain("Error:")
+      expect(result).toContain("no account found")
+    })
+  })
+
+  describe("usage", () => {
+    test("unknown action returns usage message", async () => {
       const result = await handleAccounts("invalid")
       expect(result).toContain("Usage:")
+      expect(result).toContain("reset")
     })
   })
 })
